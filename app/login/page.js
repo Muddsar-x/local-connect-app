@@ -1,25 +1,26 @@
 'use client';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { supabase } from '../../lib/supabaseClient';
 
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
   const router = useRouter();
 
   const handleLogin = async (e) => {
     e.preventDefault();
     setError('');
+    setLoading(true);
 
-    const { data, error: loginError } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    const { data, error: loginError } = await supabase.auth.signInWithPassword({ email, password });
 
     if (loginError) {
       setError(loginError.message);
+      setLoading(false);
       return;
     }
 
@@ -31,6 +32,7 @@ export default function Login() {
 
     if (profileError) {
       setError('Could not fetch user role.');
+      setLoading(false);
       return;
     }
 
@@ -38,31 +40,52 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <form onSubmit={handleLogin} className="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
-        <h1 className="text-2xl font-bold mb-6">Login - LocalConnect</h1>
+    <div className="min-h-screen bg-slate-100 flex items-center justify-center px-4">
+      <div className="w-full max-w-sm">
+        <div className="text-center mb-6">
+          <Link href="/" className="text-2xl font-bold text-slate-900">
+            Local<span className="text-blue-600">Connect</span>
+          </Link>
+        </div>
 
-        {error && <p className="text-red-500 mb-4">{error}</p>}
+        <form onSubmit={handleLogin} className="bg-white p-8 rounded-xl shadow-lg border border-slate-200">
+          <h1 className="text-xl font-semibold text-slate-800 mb-6">Welcome back</h1>
 
-        <input
-          type="email" placeholder="Email" value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          className="w-full p-2 border rounded mb-4" required
-        />
-        <input
-          type="password" placeholder="Password" value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          className="w-full p-2 border rounded mb-6" required
-        />
+          {error && (
+            <p className="text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2 mb-4 text-sm">
+              {error}
+            </p>
+          )}
 
-        <button type="submit" className="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700">
-          Login
-        </button>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
+          <input
+            type="email" value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="w-full p-2.5 border border-slate-300 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            required
+          />
 
-        <p className="mt-4 text-sm text-center">
-          No account? <a href="/signup" className="text-blue-600">Sign up here</a>
-        </p>
-      </form>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Password</label>
+          <input
+            type="password" value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="w-full p-2.5 border border-slate-300 rounded-lg mb-6 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            required
+          />
+
+          <button
+            type="submit" disabled={loading}
+            className="w-full bg-slate-900 text-white p-2.5 rounded-lg font-medium hover:bg-slate-800 transition disabled:opacity-50"
+          >
+            {loading ? 'Logging in...' : 'Login'}
+          </button>
+
+          <p className="mt-5 text-sm text-center text-slate-500">
+            No account?{' '}
+            <Link href="/signup" className="text-blue-600 font-medium">Sign up here</Link>
+          </p>
+        </form>
+      </div>
     </div>
   );
 }

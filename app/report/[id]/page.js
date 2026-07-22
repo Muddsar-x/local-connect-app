@@ -3,10 +3,11 @@ import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '../../../lib/supabaseClient';
 import { useAuth } from '../../../lib/useAuth';
+import Navbar from '../../../lib/Navbar';
 
 export default function ReportPage() {
   const { id } = useParams();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const router = useRouter();
   const [photoFile, setPhotoFile] = useState(null);
   const [reviewText, setReviewText] = useState('');
@@ -24,11 +25,8 @@ export default function ReportPage() {
       return;
     }
 
-    // Upload customer's photo
     const fileName = `report-${user.id}-${Date.now()}.jpg`;
-    const { error: uploadError } = await supabase.storage
-      .from('business-photos')
-      .upload(fileName, photoFile);
+    const { error: uploadError } = await supabase.storage.from('business-photos').upload(fileName, photoFile);
 
     if (uploadError) {
       setMessage('Photo upload failed: ' + uploadError.message);
@@ -36,18 +34,9 @@ export default function ReportPage() {
       return;
     }
 
-    const { data: urlData } = supabase.storage
-      .from('business-photos')
-      .getPublicUrl(fileName);
+    const { data: urlData } = supabase.storage.from('business-photos').getPublicUrl(fileName);
+    const { data: business } = await supabase.from('businesses').select('*').eq('id', id).single();
 
-    // Get business baseline photo for comparison
-    const { data: business } = await supabase
-      .from('businesses')
-      .select('*')
-      .eq('id', id)
-      .single();
-
-    // Call AI verification API
     const aiResponse = await fetch('/api/verify-dispute', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -61,14 +50,9 @@ export default function ReportPage() {
 
     const aiResult = await aiResponse.json();
 
-    // Save report with AI verdict
     const { error: insertError } = await supabase.from('reports').insert({
-      business_id: id,
-      customer_id: user.id,
-      photo_url: urlData.publicUrl,
-      review_text: reviewText,
-      ai_verdict: aiResult.verdict,
-      ai_reasoning: aiResult.reasoning,
+      business_id: id, customer_id: user.id, photo_url: urlData.publicUrl,
+      review_text: reviewText, ai_verdict: aiResult.verdict, ai_reasoning: aiResult.reasoning,
     });
 
     if (insertError) {
@@ -77,7 +61,6 @@ export default function ReportPage() {
       return;
     }
 
-    // If verified, lower rating
     if (aiResult.verdict === 'verified') {
       const newRating = Math.max(1, (business.rating || 5) - 0.5);
       await supabase.from('businesses').update({ rating: newRating }).eq('id', id);
@@ -89,38 +72,36 @@ export default function ReportPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6 flex items-center justify-center">
-      <form onSubmit={handleSubmit} className="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
-        <h1 className="text-xl font-bold mb-2">Report Closed Shop</h1>
-        <p className="text-sm text-gray-500 mb-4">
-          ⚠️ Take a photo of the shop right now. Make sure a clock/phone showing 
-          the current time is visible in the frame.
-        </p>
+    <div className="min-h-screen bg-slate-50">
+      <Navbar userName={profile?.name} />
 
-        {message && <p className="text-blue-600 mb-4 text-sm">{message}</p>}
+      <div className="flex items-center justify-center px-4 py-10">
+        <form onSubmit={handleSubmit} className="bg-white p-8 rounded-xl shadow-sm border border-slate-200 w-full max-w-sm">
+          <h1 className="text-xl font-semibold text-slate-900 mb-2">Report Closed Shop</h1>
+          <p className="text-sm text-slate-500 mb-5 leading-relaxed">
+            ⚠️ Take a photo of the shop right now. Make sure a clock/phone showing
+            the current time is visible in the frame.
+          </p>
 
-        <label className="block mb-2 text-sm font-medium">Photo (with visible time):</label>
-        <input
-          type="file" accept="image/*" capture="environment"
-          onChange={(e) => setPhotoFile(e.target.files[0])}
-          className="w-full p-2 border rounded mb-4" required
-        />
+          {message && <p className="text-blue-700 bg-blue-50 border border-blue-200 rounded-md px-3 py-2 mb-4 text-sm">{message}</p>}
 
-        <label className="block mb-2 text-sm font-medium">What did you notice?</label>
-        <textarea
-          placeholder="e.g. Shutter is down, lights are off..."
-          value={reviewText}
-          onChange={(e) => setReviewText(e.target.value)}
-          className="w-full p-2 border rounded mb-6" rows={3} required
-        />
+          <label className="block text-sm font-medium text-slate-700 mb-2">Photo (with visible time)</label>
+          <input type="file" accept="image/*" capture="environment" onChange={(e) => setPhotoFile(e.target.files[0])}
+            className="w-full text-sm text-slate-500 mb-4 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200" required />
 
-        <button
-          type="submit" disabled={loading}
-          className="w-full bg-red-600 text-white p-2 rounded hover:bg-red-700 disabled:opacity-50"
-        >
-          {loading ? 'Analyzing with AI...' : 'Submit Report'}
-        </button>
-      </form>
+          <label className="block text-sm font-medium text-slate-700 mb-1">What did you notice?</label>
+          <textarea
+            placeholder="e.g. Shutter is down, lights are off..."
+            value={reviewText} onChange={(e) => setReviewText(e.target.value)}
+            className="w-full p-2.5 border border-slate-300 rounded-lg mb-6 focus:outline-none focus:ring-2 focus:ring-blue-500" rows={3} required
+          />
+
+          <button type="submit" disabled={loading}
+            className="w-full bg-red-600 text-white p-2.5 rounded-lg font-medium hover:bg-red-700 transition disabled:opacity-50">
+            {loading ? 'Analyzing with AI...' : 'Submit Report'}
+          </button>
+        </form>
+      </div>
     </div>
   );
 }
